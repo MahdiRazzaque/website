@@ -46,13 +46,23 @@ const consoleCommands = {
 // Date formatting utilities
 function formatDateTime(timestamp) {
     const date = new Date(timestamp);
-    const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const dateString = date.toLocaleDateString([], { 
+    return date.toLocaleString(undefined, { 
         weekday: 'long',
+        day: 'numeric',
         month: 'long',
-        day: 'numeric'
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
     });
-    return `${dateString} at ${timeString}`;
+}
+
+function formatDate(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
 }
 
 // Cache management utilities
@@ -163,10 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Validate configuration
         validateConfig();
 
-        // Initialize EmailJS
-        emailjs.init(window.config.EMAILJS_PUBLIC_KEY);
-        console.log('EmailJS initialized successfully');
-
         // Set up event listeners
         setupEventListeners();
 
@@ -174,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchGitHubRepos();
 
     } catch (error) {
-        console.error('Initialization error:', error);
+        console.error('Initialisation error:', error);
         showNotification(error.message, 'error');
     }
 });
@@ -343,7 +349,7 @@ function createRepoCard(repo) {
     return `
         <div class="repo-card" data-repo-id="${repo.id}">
             <h3>${escapeHtml(repo.name)}</h3>
-            <div class="timeline-date">${new Date(repo.created_at).toLocaleDateString()}</div>
+            <div class="timeline-date">${formatDate(repo.created_at)}</div>
             <p class="repo-description">${escapeHtml(repo.description || 'No description available')}</p>
             ${languages}
             <div class="repo-links">
@@ -359,7 +365,7 @@ function createRepoCard(repo) {
                        target="_blank" 
                        rel="noopener noreferrer" 
                        class="demo-link"
-                       aria-label="View live demo of ${escapeHtml(repo.name)}">
+                       aria-label="View live demonstration of ${escapeHtml(repo.name)}">
                         <i class="fas fa-external-link-alt" aria-hidden="true"></i> Live Demo
                     </a>
                 ` : ''}
@@ -504,3 +510,124 @@ function showInitialHelp() {
 // Event Listeners
 window.addEventListener('devtoolschange', showInitialHelp);
 document.addEventListener('DOMContentLoaded', showInitialHelp);
+
+// Navigation Functions
+function handleSmoothScroll(e) {
+    e.preventDefault();
+    const targetId = this.getAttribute('href');
+    const target = document.querySelector(targetId);
+    
+    if (target) {
+        // Close mobile menu if open
+        closeMobileMenu();
+        
+        target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+        
+        // Update URL without jumping
+        window.history.pushState(null, '', targetId);
+    }
+}
+
+// Form Validation Functions
+function validateInput(e) {
+    const input = e.target;
+    const formGroup = input.closest('.form-group');
+    const value = input.value.trim();
+    
+    formGroup.classList.remove('error');
+    formGroup.querySelector('.error-message')?.remove();
+
+    if (!value) {
+        showInputError(formGroup, 'This field is required');
+    } else if (input.type === 'email' && !isValidEmail(value)) {
+        showInputError(formGroup, 'Please enter a valid email address');
+    }
+}
+
+function showInputError(formGroup, message) {
+    formGroup.classList.add('error');
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.setAttribute('role', 'alert');
+    errorDiv.textContent = message;
+    formGroup.appendChild(errorDiv);
+}
+
+async function handleContactFormSubmit(e) {
+    e.preventDefault();
+    if (!elements.contactForm || !elements.submitButton) return;
+
+    const formElements = elements.contactForm.elements;
+    setFormState(formElements, true);
+
+    try {
+        const formData = getFormData();
+        validateFormData(formData);
+        await sendEmail(formData);
+        
+        showNotification('Message sent successfully!', 'success');
+        elements.contactForm.reset();
+    } catch (error) {
+        console.error('Contact Form Error:', error);
+        showNotification(error.message || 'Failed to send message. Please try again.', 'error');
+    } finally {
+        setFormState(formElements, false);
+    }
+}
+
+function setFormState(formElements, isDisabled) {
+    Array.from(formElements).forEach(element => {
+        element.disabled = isDisabled;
+    });
+    elements.submitButton.textContent = isDisabled ? 'Sending...' : 'Send Message';
+}
+
+function getFormData() {
+    return {
+        name: document.getElementById('name')?.value.trim() || '',
+        email: document.getElementById('email')?.value.trim() || '',
+        message: document.getElementById('message')?.value.trim() || ''
+    };
+}
+
+function validateFormData(data) {
+    if (!data.name) {
+        throw new Error('Please enter your name');
+    }
+    if (!data.email || !isValidEmail(data.email)) {
+        throw new Error('Please enter a valid email address');
+    }
+    if (!data.message) {
+        throw new Error('Please enter a message');
+    }
+}
+
+async function sendEmail(data) {
+    if (!window.emailjs) {
+        try {
+            await emailjs.init(window.config.EMAILJS_PUBLIC_KEY);
+            console.log('EmailJS initialised successfully');
+        } catch (error) {
+            throw new Error('Failed to initialise EmailJS. Please try again later.');
+        }
+    }
+
+    try {
+        await emailjs.send(
+            window.config.EMAILJS_SERVICE_ID,
+            window.config.EMAILJS_TEMPLATE_ID,
+            {
+                from_name: data.name,
+                from_email: data.email,
+                message: data.message,
+                to_email: window.config.TO_EMAIL
+            }
+        );
+    } catch (error) {
+        console.error('EmailJS Error:', error);
+        throw new Error('Failed to send message. Please try again later.');
+    }
+}
