@@ -14,22 +14,38 @@
     
     <!-- Config Loading -->
     <script>
+        // Global config loading state
+        window._configLoading = false;
+        window._configLoadPromise = null;
+
         function loadConfig() {
-            return new Promise((resolve, reject) => {
+            // If config is already loaded, return immediately
+            if (window.config) {
+                return Promise.resolve(window.config);
+            }
+
+            // If a load is already in progress, return the existing promise
+            if (window._configLoadPromise) {
+                return window._configLoadPromise;
+            }
+
+            // Start new load
+            window._configLoadPromise = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = '/config.js';
+                script.src = 'config.js';
                 script.onload = () => {
-                    console.log('Config loaded successfully');
-                    resolve();
+                    if (window.config) {
+                        console.log('Config loaded successfully');
+                        resolve(window.config);
+                    } else {
+                        reject(new Error('Config loaded but window.config is not defined'));
+                    }
                 };
-                script.onerror = () => {
-                    console.error('Failed to load config.js. Trying fallback path...');
-                    // Try fallback relative path
-                    script.src = 'config.js';
-                    script.onerror = () => reject(new Error('Could not load config.js'));
-                };
+                script.onerror = () => reject(new Error('Could not load config.js'));
                 document.head.appendChild(script);
             });
+
+            return window._configLoadPromise;
         }
     </script>
     
@@ -41,37 +57,16 @@
             const retryDelay = 1000; // 1 second
 
             try {
-                await loadConfig();
-            } catch (error) {
-                console.error('Config loading error:', error);
-                if (retryCount < maxRetries) {
-                    console.log(`Retrying config load in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                    setTimeout(() => initEmailJS(retryCount + 1), retryDelay);
+                const config = await loadConfig();
+                if (!config.EMAILJS_PUBLIC_KEY) {
+                    throw new Error('EmailJS public key not found in config');
                 }
-                return;
-            }
-
-            if (!window.config) {
-                console.error('Config not loaded. Current window.config:', window.config);
-                if (retryCount < maxRetries) {
-                    console.log(`Retrying EmailJS initialization in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                    setTimeout(() => initEmailJS(retryCount + 1), retryDelay);
-                }
-                return;
-            }
-
-            if (!window.config.EMAILJS_PUBLIC_KEY) {
-                console.error('EmailJS public key not found in config. Available config keys:', Object.keys(window.config));
-                return;
-            }
-
-            try {
-                emailjs.init(window.config.EMAILJS_PUBLIC_KEY);
+                emailjs.init(config.EMAILJS_PUBLIC_KEY);
                 console.log('EmailJS initialized successfully');
             } catch (error) {
                 console.error('EmailJS initialization error:', error);
                 if (retryCount < maxRetries) {
-                    console.log(`Retrying EmailJS initialization in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                    console.log(`Retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
                     setTimeout(() => initEmailJS(retryCount + 1), retryDelay);
                 }
             }
