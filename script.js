@@ -521,9 +521,13 @@ function handleSmoothScroll(e) {
         // Close mobile menu if open
         closeMobileMenu();
         
-        target.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
+        // Get header height for offset
+        const headerHeight = document.querySelector('.navbar')?.offsetHeight || 0;
+        const targetPosition = target.getBoundingClientRect().top + window.pageYOffset;
+        
+        window.scrollTo({
+            top: targetPosition - headerHeight,
+            behavior: 'smooth'
         });
         
         // Update URL without jumping
