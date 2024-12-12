@@ -139,10 +139,13 @@ async function fetchGitHubRepos() {
     try {
         timelineContainer.innerHTML = '<div class="loading">Loading repositories...</div>';
         
-        // Check if config is loaded
+        // Try to load config if not already loaded
         if (!window.config) {
-            console.error('Config not loaded. Please check if config.js is accessible.');
-            throw new Error('Config not loaded. Please check if config.js is accessible.');
+            try {
+                await window.loadConfig();
+            } catch (error) {
+                throw new Error('Could not load config.js. Please check if the file is accessible.');
+            }
         }
 
         // Check if GitHub username is configured

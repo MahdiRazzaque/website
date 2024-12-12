@@ -12,13 +12,44 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" crossorigin="anonymous">
     
+    <!-- Config Loading -->
+    <script>
+        function loadConfig() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = '/config.js';
+                script.onload = () => {
+                    console.log('Config loaded successfully');
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.error('Failed to load config.js. Trying fallback path...');
+                    // Try fallback relative path
+                    script.src = 'config.js';
+                    script.onerror = () => reject(new Error('Could not load config.js'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+    </script>
+    
     <!-- EmailJS Configuration -->
-    <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script>
-        function initEmailJS(retryCount = 0) {
+        async function initEmailJS(retryCount = 0) {
             const maxRetries = 3;
             const retryDelay = 1000; // 1 second
+
+            try {
+                await loadConfig();
+            } catch (error) {
+                console.error('Config loading error:', error);
+                if (retryCount < maxRetries) {
+                    console.log(`Retrying config load in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+                    setTimeout(() => initEmailJS(retryCount + 1), retryDelay);
+                }
+                return;
+            }
 
             if (!window.config) {
                 console.error('Config not loaded. Current window.config:', window.config);
