@@ -13,55 +13,155 @@ This project is my personal portfolio website. I'm a first-year Computer Science
 -   **Social Media Links:** Links to my GitHub, LinkedIn, Twitter, and Instagram profiles are provided in the Socials section.
 -   **Resume:** Detailed CV information including Key Skills, Education, and Work Experience.
 -   **About Section:** An introduction to me, my interests, and skills.
+-   **Cache System:** Implements smart caching for GitHub repositories to improve performance and handle rate limits.
+-   **Developer Console:** Includes helpful console commands for debugging and cache management.
 
 ## Technologies Used
 
--   **HTML:** Used for structuring the content of the website.
--   **CSS:** Used for styling the website and making it visually appealing.
--   **JavaScript:** Used for interactive elements, such as the hamburger menu, smooth scrolling, fetching GitHub repositories, and handling the contact form.
--   **EmailJS:** Used for sending emails from the contact form.
+-   **HTML5:** Semantic markup for better accessibility and SEO
+-   **CSS3:** Modern styling with CSS variables and responsive design
+-   **JavaScript (ES6+):** Modern JavaScript with async/await and proper error handling
+-   **EmailJS:** Email handling for the contact form
+-   **GitHub API:** Dynamic repository fetching
+-   **Nginx:** Production server configuration
 
 ## Project Structure
 
--   `index.html`: The main HTML file containing the structure and content of the website.
--   `styles.css`: The CSS file containing the styles for the website.
--   `script.js`: The JavaScript file containing the logic for interactive elements and dynamic content.
+```
+portfolio-website/
+├── index.html          # Main HTML file
+├── styles.css          # CSS styles
+├── script.js           # JavaScript functionality
+├── config.example.js   # Example configuration file
+├── config.js           # Your actual configuration (gitignored)
+├── assets/            # Images and other static assets
+└── README.md          # Documentation
+```
 
 ## Setup and Installation
 
+### Local Development
+
 1. **Clone the repository:**
-
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/MahdiRazzaque/website.git
+    cd website
     ```
 
-2. **Navigate to the project directory:**
-
+2. **Configure the website:**
     ```bash
-    cd <project_directory>
+    # Copy the example config file
+    cp config.example.js config.js
+    
+    # Edit config.js with your credentials
+    nano config.js
     ```
 
-3. **Open `index.html` in your browser:**
+3. **Set up EmailJS:**
+    - Create an account at [EmailJS](https://www.emailjs.com/)
+    - Create an email service and template
+    - Update `config.js` with your EmailJS credentials
 
-    You can simply open the `index.html` file in your preferred web browser to view the website locally.
+4. **Run locally:**
+    - Using Python's built-in server:
+        ```bash
+        python -m http.server 8000
+        ```
+    - Or using Node's http-server:
+        ```bash
+        npx http-server
+        ```
 
-## GitHub Repository Timeline
+### Production Deployment (Ubuntu/Nginx)
 
-The portfolio section dynamically fetches my GitHub repositories using the GitHub API. It then displays them in a timeline, with each repository represented by a card.
+1. **Set up the server:**
+    ```bash
+    # Install Nginx
+    sudo apt update
+    sudo apt install nginx
+    
+    # Create website directory
+    sudo mkdir -p /var/www/portfolio
+    sudo chown -R $USER:$USER /var/www/portfolio
+    ```
 
-**Note:** The GitHub API has rate limits for unauthenticated requests. If you encounter issues with loading repositories, it might be due to exceeding the rate limit.
+2. **Configure Nginx:**
+    ```nginx
+    server {
+        listen 443 ssl;
+        server_name your_domain.com;
 
-## Contact Form
+        root /var/www/portfolio;
+        index index.html;
 
-The contact form allows visitors to send messages directly to me. It uses EmailJS to handle the email sending functionality.
+        # Handle JavaScript files
+        location ~* \.js$ {
+            add_header Content-Type application/javascript;
+            try_files $uri =404;
+        }
 
-**Note:** For the contact form to work, you need to set up an EmailJS account and configure the `config.js` file with your EmailJS service ID, template ID, and public key. You may also need to adjust the configuration variables to your needs.
+        location / {
+            try_files $uri $uri/ /index.html =404;
+        }
+    }
+    ```
 
-## Customisation
+3. **Set proper permissions:**
+    ```bash
+    sudo chmod 755 /var/www/portfolio
+    sudo chmod 644 /var/www/portfolio/*
+    sudo find /var/www/portfolio -type d -exec chmod 755 {} \;
+    ```
 
-You can customise the website by modifying the HTML, CSS, and JavaScript files. You can update the content, styles, and functionality to match your preferences.
+## Configuration
 
--   **Content:** Update the text content in `index.html` to reflect your information.
--   **Styles:** Modify the CSS variables and styles in `styles.css` to change the appearance of the website.
--   **GitHub Repositories:** The `script.js` file automatically fetches your public repositories from GitHub. You don't need to manually update the repository list.
--   **Contact Form:** If using EmailJS, update the email template in your EmailJS account to customise the email that is sent when the form is submitted.
+Create a `config.js` file based on `config.example.js`:
+
+```javascript
+window.config = {
+    // EmailJS Configuration
+    EMAILJS_PUBLIC_KEY: 'your_key_here',
+    EMAILJS_SERVICE_ID: 'your_service_id',
+    EMAILJS_TEMPLATE_ID: 'your_template_id',
+    
+    // Email Configuration
+    TO_EMAIL: 'your@email.com',
+    
+    // GitHub Configuration
+    GITHUB_USERNAME: 'your_github_username'
+};
+```
+
+## Developer Tools
+
+Open browser DevTools (F12) to access these console commands:
+
+- `help()` - List all available console commands
+- `showCacheInfo()` - Display GitHub cache status
+- `clearGitHubCache()` - Clear the GitHub cache
+
+## Cache System
+
+The website implements a smart caching system for GitHub repositories that:
+- Updates at midnight UTC daily
+- Falls back to cached data if rate limited
+- Shows cache status in the console
+- Provides manual cache management through console commands
+
+## Troubleshooting
+
+1. **JavaScript not loading:**
+   - Check browser console for errors
+   - Verify file permissions
+   - Clear browser cache
+   - Ensure config.js is properly set up
+
+2. **Contact form not working:**
+   - Verify EmailJS credentials
+   - Check browser console for errors
+   - Verify email template configuration
+
+3. **GitHub repositories not loading:**
+   - Check rate limit status
+   - Clear cache using `clearGitHubCache()`
+   - Verify GitHub username in config.js

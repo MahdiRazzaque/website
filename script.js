@@ -1,3 +1,23 @@
+// Configuration validation
+function validateConfig() {
+    const requiredKeys = [
+        'EMAILJS_PUBLIC_KEY',
+        'EMAILJS_SERVICE_ID',
+        'EMAILJS_TEMPLATE_ID',
+        'TO_EMAIL',
+        'GITHUB_USERNAME'
+    ];
+
+    if (!window.config) {
+        throw new Error('Configuration not found. Please ensure config.js is properly loaded.');
+    }
+
+    const missingKeys = requiredKeys.filter(key => !window.config[key]);
+    if (missingKeys.length > 0) {
+        throw new Error(`Missing required configuration keys: ${missingKeys.join(', ')}`);
+    }
+}
+
 // Cache DOM elements
 const elements = {
     hamburger: document.querySelector('.hamburger'),
@@ -10,14 +30,20 @@ const elements = {
 
 // Constants
 const DEBOUNCE_DELAY = 300;
-
-// Cache constants
 const CACHE_KEYS = {
     REPOS: 'github_repos_cache',
     LANGUAGES: 'github_languages_cache',
     LAST_FETCH: 'github_last_fetch'
 };
 
+// Console Help System
+const consoleCommands = {
+    help: "Lists all available console commands and their descriptions",
+    clearGitHubCache: "Clears the GitHub repositories and languages cache, forcing a fresh fetch on next load",
+    showCacheInfo: "Shows the current cache status, including last update time and next scheduled update"
+};
+
+// Date formatting utilities
 function formatDateTime(timestamp) {
     const date = new Date(timestamp);
     const timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -29,9 +55,9 @@ function formatDateTime(timestamp) {
     return `${dateString} at ${timeString}`;
 }
 
+// Cache management utilities
 function isCacheValid(lastFetchTime) {
     if (!lastFetchTime) return false;
-    const now = Date.now();
     const lastMidnightUTC = new Date();
     lastMidnightUTC.setUTCHours(0, 0, 0, 0);
     return lastFetchTime >= lastMidnightUTC.getTime();
@@ -44,75 +70,6 @@ function getNextMidnightUTC() {
     return tomorrow.getTime();
 }
 
-// Utility Functions
-function escapeHtml(unsafe) {
-    if (typeof unsafe !== 'string') return '';
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function showNotification(message, type) {
-    const existingNotifications = document.querySelectorAll('.notification');
-    existingNotifications.forEach(notification => notification.remove());
-
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-        notification.classList.add('fade-out');
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-function setLoading(element, isLoading) {
-    if (isLoading) {
-        element.innerHTML = `
-            <div class="loading-container">
-                <div class="loading-spinner"></div>
-                <p>Loading repositories...</p>
-            </div>
-        `;
-    }
-}
-
-function showError(element, message, retryCallback = null) {
-    element.innerHTML = `
-        <div class="error-container">
-            <i class="fas fa-exclamation-circle"></i>
-            <p class="error-message">${escapeHtml(message)}</p>
-            ${retryCallback ? '<button class="retry-button">Try Again</button>' : ''}
-        </div>
-    `;
-    
-    if (retryCallback) {
-        const retryButton = element.querySelector('.retry-button');
-        retryButton?.addEventListener('click', retryCallback);
-    }
-}
-
-// Cache utility functions
 function getCache(key) {
     try {
         const cached = localStorage.getItem(key);
@@ -128,8 +85,99 @@ function setCache(key, data) {
         localStorage.setItem(key, JSON.stringify(data));
     } catch (error) {
         console.error('Error setting cache:', error);
+        // Handle quota exceeded error
+        if (error.name === 'QuotaExceededError') {
+            clearOldCache();
+        }
     }
 }
+
+function clearOldCache() {
+    try {
+        // Clear old caches if storage is full
+        Object.values(CACHE_KEYS).forEach(key => {
+            if (key !== CACHE_KEYS.LAST_FETCH) {
+                localStorage.removeItem(key);
+            }
+        });
+    } catch (error) {
+        console.error('Error clearing old cache:', error);
+    }
+}
+
+// Security utilities
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// Notification system
+function showNotification(message, type = 'info') {
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => notification.remove());
+
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.setAttribute('role', 'alert');
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Error handling
+function showError(container, message, retryCallback = null) {
+    if (!container) return;
+    
+    const errorHtml = `
+        <div class="error-container" role="alert">
+            <i class="fas fa-exclamation-circle"></i>
+            <p class="error-message">${escapeHtml(message)}</p>
+            ${retryCallback ? '<button class="retry-button">Try Again</button>' : ''}
+        </div>
+    `;
+    
+    container.innerHTML = errorHtml;
+    
+    if (retryCallback) {
+        const retryButton = container.querySelector('.retry-button');
+        retryButton?.addEventListener('click', retryCallback);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        // Validate configuration
+        validateConfig();
+
+        // Initialize EmailJS
+        emailjs.init(window.config.EMAILJS_PUBLIC_KEY);
+        console.log('EmailJS initialized successfully');
+
+        // Set up event listeners
+        setupEventListeners();
+
+        // Load GitHub repositories
+        fetchGitHubRepos();
+
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showNotification(error.message, 'error');
+    }
+});
 
 // GitHub Repository Functions
 async function fetchGitHubRepos() {
@@ -137,12 +185,8 @@ async function fetchGitHubRepos() {
     if (!timelineContainer) return;
 
     try {
-        timelineContainer.innerHTML = '<div class="loading">Loading repositories...</div>';
+        timelineContainer.innerHTML = '<div class="loading" role="status" aria-live="polite">Loading repositories...</div>';
         
-        if (!window.config?.GITHUB_USERNAME) {
-            throw new Error('GitHub username not configured');
-        }
-
         // Check cache first
         const cachedRepos = getCache(CACHE_KEYS.REPOS);
         const lastFetchTime = getCache(CACHE_KEYS.LAST_FETCH);
@@ -155,66 +199,10 @@ async function fetchGitHubRepos() {
             repos = cachedRepos;
         } else {
             console.log('Fetching fresh repository data');
-            const response = await fetch(`https://api.github.com/users/${window.config.GITHUB_USERNAME}/repos?per_page=100`, {
-                headers: {
-                    'Accept': 'application/vnd.github.v3+json',
-                    'User-Agent': 'Portfolio-Website'
-                }
-            });
-
-            if (response.status === 403) {
-                // If cache exists but is expired, use it as fallback
-                if (cachedRepos) {
-                    const lastUpdate = formatDateTime(lastFetchTime);
-                    console.log(`Rate limit exceeded, using expired cache as fallback. Last updated: ${lastUpdate}`);
-                    repos = cachedRepos;
-                } else {
-                    throw new Error('GitHub API rate limit exceeded. Please try again later.');
-                }
-            } else if (response.status === 404) {
-                throw new Error('GitHub username not found.');
-            } else if (!response.ok) {
-                throw new Error(`Failed to fetch repositories (${response.status})`);
-            } else {
-                repos = await response.json();
-                // Update cache
-                setCache(CACHE_KEYS.REPOS, repos);
-                const currentTime = Date.now();
-                setCache(CACHE_KEYS.LAST_FETCH, currentTime);
-                const nextUpdate = formatDateTime(getNextMidnightUTC());
-                const lastUpdate = formatDateTime(currentTime);
-                console.log(`Repository data cached. Last updated: ${lastUpdate}. Next update: ${nextUpdate}`);
-            }
+            repos = await fetchGitHubData();
         }
         
-        if (!Array.isArray(repos) || repos.length === 0) {
-            timelineContainer.innerHTML = '<p class="no-repos">No repositories found.</p>';
-            return;
-        }
-
-        // Sort and filter repositories
-        const sortedRepos = repos
-            .filter(repo => !repo.fork && !repo.private)
-            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-        if (sortedRepos.length === 0) {
-            timelineContainer.innerHTML = '<p class="no-repos">No public repositories found.</p>';
-            return;
-        }
-
-        timelineContainer.innerHTML = sortedRepos
-            .map(repo => createRepoCard(repo))
-            .join('');
-
-        // Add intersection observer for animations
-        addRepoAnimations();
-
-        // Fetch languages for each repo
-        sortedRepos.forEach(repo => {
-            if (repo.languages_url) {
-                fetchRepoLanguages(repo.languages_url);
-            }
-        });
+        await renderRepositories(repos, timelineContainer);
 
     } catch (error) {
         console.error('Error fetching GitHub repositories:', error);
@@ -222,12 +210,80 @@ async function fetchGitHubRepos() {
             'GitHub API rate limit exceeded. Please try again in a few minutes.' :
             error.message || 'Error loading repositories. Please try again later.';
             
-        showError(
-            timelineContainer, 
-            errorMessage,
-            () => fetchGitHubRepos()
-        );
+        showError(timelineContainer, errorMessage, () => fetchGitHubRepos());
     }
+}
+
+async function fetchGitHubData() {
+    const response = await fetch(`https://api.github.com/users/${window.config.GITHUB_USERNAME}/repos?per_page=100`, {
+        headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Portfolio-Website'
+        }
+    });
+
+    if (response.status === 403) {
+        const cachedRepos = getCache(CACHE_KEYS.REPOS);
+        const lastFetchTime = getCache(CACHE_KEYS.LAST_FETCH);
+        
+        if (cachedRepos) {
+            const lastUpdate = formatDateTime(lastFetchTime);
+            console.log(`Rate limit exceeded, using expired cache as fallback. Last updated: ${lastUpdate}`);
+            return cachedRepos;
+        }
+        throw new Error('GitHub API rate limit exceeded. Please try again later.');
+    }
+
+    if (response.status === 404) {
+        throw new Error('GitHub username not found.');
+    }
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch repositories (${response.status})`);
+    }
+
+    const repos = await response.json();
+    
+    // Update cache
+    setCache(CACHE_KEYS.REPOS, repos);
+    const currentTime = Date.now();
+    setCache(CACHE_KEYS.LAST_FETCH, currentTime);
+    const nextUpdate = formatDateTime(getNextMidnightUTC());
+    const lastUpdate = formatDateTime(currentTime);
+    console.log(`Repository data cached. Last updated: ${lastUpdate}. Next update: ${nextUpdate}`);
+    
+    return repos;
+}
+
+async function renderRepositories(repos, container) {
+    if (!Array.isArray(repos) || repos.length === 0) {
+        container.innerHTML = '<p class="no-repos">No repositories found.</p>';
+        return;
+    }
+
+    // Sort and filter repositories
+    const sortedRepos = repos
+        .filter(repo => !repo.fork && !repo.private)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    if (sortedRepos.length === 0) {
+        container.innerHTML = '<p class="no-repos">No public repositories found.</p>';
+        return;
+    }
+
+    container.innerHTML = sortedRepos
+        .map(repo => createRepoCard(repo))
+        .join('');
+
+    // Add intersection observer for animations
+    addRepoAnimations();
+
+    // Fetch languages for each repo
+    sortedRepos.forEach(repo => {
+        if (repo.languages_url) {
+            fetchRepoLanguages(repo.languages_url);
+        }
+    });
 }
 
 async function fetchRepoLanguages(languagesUrl) {
@@ -260,26 +316,29 @@ async function fetchRepoLanguages(languagesUrl) {
             setCache(CACHE_KEYS.LANGUAGES, cachedLanguages);
         }
 
-        const languagesList = Object.keys(languages);
-
-        if (languagesList.length > 0) {
-            const repoCard = document.querySelector(`[data-languages-url="${languagesUrl}"]`);
-            const languagesContainer = repoCard?.querySelector('.repo-languages');
-            if (languagesContainer) {
-                languagesContainer.innerHTML = languagesList
-                    .map(lang => `<span class="language-tag">${escapeHtml(lang)}</span>`)
-                    .join('');
-                languagesContainer.classList.remove('skeleton');
-            }
-        }
+        updateLanguagesDisplay(languages, languagesUrl);
     } catch (error) {
         console.error('Error fetching languages:', error);
     }
 }
 
+function updateLanguagesDisplay(languages, languagesUrl) {
+    const languagesList = Object.keys(languages);
+    if (languagesList.length === 0) return;
+
+    const repoCard = document.querySelector(`[data-languages-url="${languagesUrl}"]`);
+    const languagesContainer = repoCard?.querySelector('.repo-languages');
+    if (!languagesContainer) return;
+
+    languagesContainer.innerHTML = languagesList
+        .map(lang => `<span class="language-tag">${escapeHtml(lang)}</span>`)
+        .join('');
+    languagesContainer.classList.remove('skeleton');
+}
+
 function createRepoCard(repo) {
     const languages = repo.languages_url ? 
-        `<div class="repo-languages skeleton" data-languages-url="${repo.languages_url}"></div>` : '';
+        `<div class="repo-languages skeleton" data-languages-url="${repo.languages_url}" aria-label="Repository languages"></div>` : '';
     
     return `
         <div class="repo-card" data-repo-id="${repo.id}">
@@ -288,12 +347,20 @@ function createRepoCard(repo) {
             <p class="repo-description">${escapeHtml(repo.description || 'No description available')}</p>
             ${languages}
             <div class="repo-links">
-                <a href="${escapeHtml(repo.html_url)}" target="_blank" rel="noopener noreferrer" class="repo-link">
-                    <i class="fab fa-github"></i> View Repository
+                <a href="${escapeHtml(repo.html_url)}" 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   class="repo-link"
+                   aria-label="View repository ${escapeHtml(repo.name)} on GitHub">
+                    <i class="fab fa-github" aria-hidden="true"></i> View Repository
                 </a>
                 ${repo.homepage ? `
-                    <a href="${escapeHtml(repo.homepage)}" target="_blank" rel="noopener noreferrer" class="demo-link">
-                        <i class="fas fa-external-link-alt"></i> Live Demo
+                    <a href="${escapeHtml(repo.homepage)}" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       class="demo-link"
+                       aria-label="View live demo of ${escapeHtml(repo.name)}">
+                        <i class="fas fa-external-link-alt" aria-hidden="true"></i> Live Demo
                     </a>
                 ` : ''}
             </div>
@@ -301,6 +368,7 @@ function createRepoCard(repo) {
     `;
 }
 
+// Animation Functions
 function addRepoAnimations() {
     const observer = new IntersectionObserver(
         (entries) => {
@@ -320,57 +388,13 @@ function addRepoAnimations() {
 }
 
 // Form Handling
-async function handleContactFormSubmit(e) {
-    e.preventDefault();
-    if (!elements.contactForm || !elements.submitButton) return;
-
-    const formElements = elements.contactForm.elements;
-    setFormState(formElements, true);
-
-    try {
-        const formData = getFormData();
-        validateFormData(formData);
-        await sendEmail(formData);
-        
-        showNotification('Message sent successfully!', 'success');
-        elements.contactForm.reset();
-    } catch (error) {
-        console.error('Contact Form Error:', error);
-        showNotification(error.message || 'Failed to send message. Please try again.', 'error');
-    } finally {
-        setFormState(formElements, false);
-    }
-}
-
-function setFormState(formElements, isDisabled) {
-    Array.from(formElements).forEach(element => {
-        element.disabled = isDisabled;
-    });
-    elements.submitButton.textContent = isDisabled ? 'Sending...' : 'Send Message';
-}
-
-function getFormData() {
-    return {
-        name: document.getElementById('name')?.value.trim() || '',
-        email: document.getElementById('email')?.value.trim() || '',
-        message: document.getElementById('message')?.value.trim() || ''
-    };
-}
-
-// Event Listeners
-function initializeEventListeners() {
+function setupEventListeners() {
     // Mobile menu
-    elements.hamburger?.addEventListener('click', () => {
-        elements.navLinks?.classList.toggle('active');
-        elements.hamburger.classList.toggle('active');
-    });
-
+    elements.hamburger?.addEventListener('click', toggleMobileMenu);
+    
     // Close mobile menu when clicking links
     elements.navLinksItems?.forEach(link => {
-        link.addEventListener('click', () => {
-            elements.navLinks?.classList.remove('active');
-            elements.hamburger?.classList.remove('active');
-        });
+        link.addEventListener('click', closeMobileMenu);
     });
 
     // Smooth scrolling
@@ -381,66 +405,41 @@ function initializeEventListeners() {
     // Contact form
     elements.contactForm?.addEventListener('submit', handleContactFormSubmit);
 
-    // Handle form validation on input
+    // Form validation
     elements.contactForm?.querySelectorAll('input, textarea').forEach(input => {
         input.addEventListener('input', debounce(validateInput, DEBOUNCE_DELAY));
     });
 }
 
-function handleSmoothScroll(e) {
-    e.preventDefault();
-    const target = document.querySelector(this.getAttribute('href'));
-    if (target) {
-        target.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start'
-        });
-    }
-}
-
-function validateInput(e) {
-    const input = e.target;
-    const formGroup = input.closest('.form-group');
-    const value = input.value.trim();
+function toggleMobileMenu() {
+    elements.navLinks?.classList.toggle('active');
+    elements.hamburger?.classList.toggle('active');
     
-    formGroup.classList.remove('error');
-    formGroup.querySelector('.error-message')?.remove();
-
-    if (!value) {
-        showInputError(formGroup, 'This field is required');
-    } else if (input.type === 'email' && !isValidEmail(value)) {
-        showInputError(formGroup, 'Please enter a valid email address');
-    }
+    // Update ARIA attributes
+    const isExpanded = elements.navLinks?.classList.contains('active');
+    elements.hamburger?.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
 }
 
-function showInputError(formGroup, message) {
-    formGroup.classList.add('error');
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.textContent = message;
-    formGroup.appendChild(errorDiv);
+function closeMobileMenu() {
+    elements.navLinks?.classList.remove('active');
+    elements.hamburger?.classList.remove('active');
+    elements.hamburger?.setAttribute('aria-expanded', 'false');
 }
 
-// Add a function to clear the cache if needed
-function clearGitHubCache() {
-    try {
-        localStorage.removeItem(CACHE_KEYS.REPOS);
-        localStorage.removeItem(CACHE_KEYS.LANGUAGES);
-        localStorage.removeItem(CACHE_KEYS.LAST_FETCH);
-        console.log('GitHub cache cleared successfully');
-    } catch (error) {
-        console.error('Error clearing cache:', error);
-    }
+// Utility Functions
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
-// Console Help System
-const consoleCommands = {
-    help: "Lists all available console commands and their descriptions",
-    clearGitHubCache: "Clears the GitHub repositories and languages cache, forcing a fresh fetch on next load",
-    showCacheInfo: "Shows the current cache status, including last update time and next scheduled update"
-};
-
-// Add to window object so they're accessible in console
+// Console Commands
 window.help = function() {
     console.log('Available Console Commands:\n');
     Object.entries(consoleCommands).forEach(([command, description]) => {
@@ -473,20 +472,20 @@ window.clearGitHubCache = function() {
         localStorage.removeItem(CACHE_KEYS.REPOS);
         localStorage.removeItem(CACHE_KEYS.LANGUAGES);
         localStorage.removeItem(CACHE_KEYS.LAST_FETCH);
-        console.log('%cGitHub cache cleared successfully!%c\nRefresh the page to fetch fresh data.', 'color: #4CAF50; font-weight: bold', 'color: inherit');
+        console.log('%cGitHub cache cleared successfully!%c\nRefresh the page to fetch fresh data.', 
+            'color: #4CAF50; font-weight: bold', 'color: inherit');
     } catch (error) {
         console.error('Error clearing cache:', error);
     }
 };
 
-// Add initial help message when DevTools is opened
+// DevTools Welcome Message
 const helpMessage = `
 %cWelcome to the Portfolio Console!%c
 
 Type %chelp()%c to see available commands.
 `;
 
-// Function to show help message when DevTools opens
 function showInitialHelp() {
     if (window.devtools?.isOpen || 
         window.innerHeight < window.outerHeight - 100 || 
@@ -502,12 +501,6 @@ function showInitialHelp() {
     }
 }
 
-// Listen for DevTools open
+// Event Listeners
 window.addEventListener('devtoolschange', showInitialHelp);
 document.addEventListener('DOMContentLoaded', showInitialHelp);
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    initializeEventListeners();
-    fetchGitHubRepos();
-});
