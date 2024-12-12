@@ -14,33 +14,33 @@
     
     <!-- Config Loading -->
     <script>
-        // Global config loading state
-        window._configLoading = false;
         window._configLoadPromise = null;
 
         function loadConfig() {
-            // If config is already loaded, return immediately
-            if (window.config) {
-                return Promise.resolve(window.config);
-            }
-
-            // If a load is already in progress, return the existing promise
             if (window._configLoadPromise) {
                 return window._configLoadPromise;
             }
 
-            // Start new load
             window._configLoadPromise = new Promise((resolve, reject) => {
+                if (window.config) {
+                    resolve(window.config);
+                    return;
+                }
+
                 const script = document.createElement('script');
                 script.src = 'config.js';
+                
                 script.onload = () => {
-                    if (window.config) {
-                        console.log('Config loaded successfully');
-                        resolve(window.config);
-                    } else {
-                        reject(new Error('Config loaded but window.config is not defined'));
-                    }
+                    // Add a small delay to ensure config is initialized
+                    setTimeout(() => {
+                        if (window.config) {
+                            resolve(window.config);
+                        } else {
+                            reject(new Error('Config loaded but window.config is not defined'));
+                        }
+                    }, 100);
                 };
+                
                 script.onerror = () => reject(new Error('Could not load config.js'));
                 document.head.appendChild(script);
             });
@@ -72,8 +72,12 @@
             }
         }
 
-        // Start initialization when DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => initEmailJS());
+        // Wait for DOM and config to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => initEmailJS());
+        } else {
+            initEmailJS();
+        }
     </script>
     
     <!-- Main Script -->
