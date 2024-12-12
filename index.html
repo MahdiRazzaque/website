@@ -12,72 +12,18 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" crossorigin="anonymous">
     
-    <!-- Config Loading -->
-    <script>
-        window._configLoadPromise = null;
-
-        function loadConfig() {
-            if (window._configLoadPromise) {
-                return window._configLoadPromise;
-            }
-
-            window._configLoadPromise = new Promise((resolve, reject) => {
-                if (window.config) {
-                    resolve(window.config);
-                    return;
-                }
-
-                const script = document.createElement('script');
-                script.src = 'config.js';
-                
-                script.onload = () => {
-                    // Add a small delay to ensure config is initialized
-                    setTimeout(() => {
-                        if (window.config) {
-                            resolve(window.config);
-                        } else {
-                            reject(new Error('Config loaded but window.config is not defined'));
-                        }
-                    }, 100);
-                };
-                
-                script.onerror = () => reject(new Error('Could not load config.js'));
-                document.head.appendChild(script);
-            });
-
-            return window._configLoadPromise;
-        }
-    </script>
-    
     <!-- EmailJS Configuration -->
+    <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <script>
-        async function initEmailJS(retryCount = 0) {
-            const maxRetries = 3;
-            const retryDelay = 1000; // 1 second
-
+        document.addEventListener('DOMContentLoaded', function() {
             try {
-                const config = await loadConfig();
-                if (!config.EMAILJS_PUBLIC_KEY) {
-                    throw new Error('EmailJS public key not found in config');
-                }
-                emailjs.init(config.EMAILJS_PUBLIC_KEY);
+                emailjs.init(window.config.EMAILJS_PUBLIC_KEY);
                 console.log('EmailJS initialized successfully');
             } catch (error) {
                 console.error('EmailJS initialization error:', error);
-                if (retryCount < maxRetries) {
-                    console.log(`Retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-                    setTimeout(() => initEmailJS(retryCount + 1), retryDelay);
-                }
             }
-        }
-
-        // Wait for DOM and config to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => initEmailJS());
-        } else {
-            initEmailJS();
-        }
+        });
     </script>
     
     <!-- Main Script -->

@@ -139,10 +139,8 @@ async function fetchGitHubRepos() {
     try {
         timelineContainer.innerHTML = '<div class="loading">Loading repositories...</div>';
         
-        // Load config
-        const config = await window.loadConfig();
-        if (!config.GITHUB_USERNAME) {
-            throw new Error('GitHub username not configured in config.js');
+        if (!window.config?.GITHUB_USERNAME) {
+            throw new Error('GitHub username not configured');
         }
 
         // Check cache first
@@ -156,8 +154,8 @@ async function fetchGitHubRepos() {
             console.log(`Using cached repository data. Last updated: ${lastUpdate}. Next update: ${nextUpdate}`);
             repos = cachedRepos;
         } else {
-            console.log(`Fetching fresh repository data for user: ${config.GITHUB_USERNAME}`);
-            const response = await fetch(`https://api.github.com/users/${config.GITHUB_USERNAME}/repos?per_page=100`, {
+            console.log('Fetching fresh repository data');
+            const response = await fetch(`https://api.github.com/users/${window.config.GITHUB_USERNAME}/repos?per_page=100`, {
                 headers: {
                     'Accept': 'application/vnd.github.v3+json',
                     'User-Agent': 'Portfolio-Website'
@@ -174,9 +172,9 @@ async function fetchGitHubRepos() {
                     throw new Error('GitHub API rate limit exceeded. Please try again later.');
                 }
             } else if (response.status === 404) {
-                throw new Error(`GitHub username '${config.GITHUB_USERNAME}' not found.`);
+                throw new Error('GitHub username not found.');
             } else if (!response.ok) {
-                throw new Error(`Failed to fetch repositories (${response.status}): ${response.statusText}`);
+                throw new Error(`Failed to fetch repositories (${response.status})`);
             } else {
                 repos = await response.json();
                 // Update cache
