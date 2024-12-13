@@ -446,13 +446,6 @@ function debounce(func, wait) {
 }
 
 // Console Commands
-window.help = function() {
-    console.log('Available Console Commands:\n');
-    Object.entries(consoleCommands).forEach(([command, description]) => {
-        console.log(`%c${command}()%c - ${description}`, 'color: #4a90e2; font-weight: bold', 'color: inherit');
-    });
-};
-
 window.showCacheInfo = function() {
     const lastFetchTime = getCache(CACHE_KEYS.LAST_FETCH);
     const cachedRepos = getCache(CACHE_KEYS.REPOS);
@@ -484,32 +477,6 @@ window.clearGitHubCache = function() {
         console.error('Error clearing cache:', error);
     }
 };
-
-// DevTools Welcome Message
-const helpMessage = `
-%cWelcome to the Portfolio Console!%c
-
-Type %chelp()%c to see available commands.
-`;
-
-function showInitialHelp() {
-    if (window.devtools?.isOpen || 
-        window.innerHeight < window.outerHeight - 100 || 
-        window.Firebug?.chrome?.isInitialized) {
-        console.clear();
-        console.log(
-            helpMessage,
-            'color: #4a90e2; font-size: 14px; font-weight: bold',
-            'color: inherit',
-            'color: #4a90e2; font-weight: bold',
-            'color: inherit'
-        );
-    }
-}
-
-// Event Listeners
-window.addEventListener('devtoolschange', showInitialHelp);
-document.addEventListener('DOMContentLoaded', showInitialHelp);
 
 // Navigation Functions
 function handleSmoothScroll(e) {
